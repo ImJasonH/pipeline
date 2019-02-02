@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/authn/k8schain"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -183,7 +184,14 @@ func getRemoteImage(image string) (v1.Image, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse image %s: %v", image, err)
 	}
-	img, err := remote.Image(ref, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+	kc, err := k8schain.NewInCluster(k8schain.Options{
+		// TODO(jasonhall): options
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	img, err := remote.Image(ref, remote.WithAuthFromKeychain(authn.NewMultiKeychain(authn.DefaultKeychain, kc)))
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get container image info from registry %s: %v", image, err)
 	}

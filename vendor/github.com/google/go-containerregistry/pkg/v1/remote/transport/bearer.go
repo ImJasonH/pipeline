@@ -15,9 +15,8 @@
 package transport
 
 import (
-	"fmt"
-
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -56,7 +55,8 @@ func (bt *bearerTransport) RoundTrip(in *http.Request) (*http.Response, error) {
 		// abstraction, so to avoid forwarding Authorization headers to places
 		// we are redirected, only set it when the authorization header matches
 		// the registry with which we are interacting.
-		if in.Host == bt.registry.RegistryStr() {
+		// In case of redirect http.Client can use an empty Host, check URL too.
+		if in.Host == bt.registry.RegistryStr() || in.URL.Host == bt.registry.RegistryStr() {
 			in.Header.Set("Authorization", hdr)
 		}
 		in.Header.Set("User-Agent", transportName)
@@ -101,6 +101,10 @@ func (bt *bearerTransport) refresh() error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if err := CheckError(resp, http.StatusOK); err != nil {
+		return err
+	}
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
