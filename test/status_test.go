@@ -21,7 +21,6 @@ package test
 import (
 	"testing"
 
-	tb "github.com/tektoncd/pipeline/test/builder"
 	knativetest "knative.dev/pkg/test"
 )
 
@@ -36,15 +35,25 @@ func TestTaskRunPipelineRunStatus(t *testing.T) {
 	defer tearDown(t, c, namespace)
 
 	t.Logf("Creating Task and TaskRun in namespace %s", namespace)
-	task := tb.Task("banana", namespace, tb.TaskSpec(
-		tb.Step("foo", "busybox", tb.StepCommand("ls", "-la")),
-	))
+	task := mustParseTask(t, `
+metadata:
+  name: banana
+spec:
+  steps:
+  - name: foo
+    image: busybox
+    command: ['ls', '-la']`)
 	if _, err := c.TaskClient.Create(task); err != nil {
 		t.Fatalf("Failed to create Task: %s", err)
 	}
-	taskRun := tb.TaskRun("apple", namespace, tb.TaskRunSpec(
-		tb.TaskRunTaskRef("banana"), tb.TaskRunServiceAccountName("inexistent"),
-	))
+
+	taskRun := mustParseTaskRun(t, `
+metadata:
+  name: apple
+spec:
+  taskRef:
+    name: banana
+  serviceAccountName: inexistent`)
 	if _, err := c.TaskRunClient.Create(taskRun); err != nil {
 		t.Fatalf("Failed to create TaskRun: %s", err)
 	}
@@ -54,15 +63,25 @@ func TestTaskRunPipelineRunStatus(t *testing.T) {
 		t.Errorf("Error waiting for TaskRun to finish: %s", err)
 	}
 
-	pipeline := tb.Pipeline("tomatoes", namespace,
-		tb.PipelineSpec(tb.PipelineTask("foo", "banana")),
-	)
-	pipelineRun := tb.PipelineRun("pear", namespace, tb.PipelineRunSpec(
-		"tomatoes", tb.PipelineRunServiceAccountName("inexistent"),
-	))
+	pipeline := mustParsePipeline(t, `
+metadata:
+  name: tomatoes
+spec:
+  tasks:
+  - name: foo
+    taskRef:
+      name: banana`)
 	if _, err := c.PipelineClient.Create(pipeline); err != nil {
 		t.Fatalf("Failed to create Pipeline `%s`: %s", "tomatoes", err)
 	}
+
+	pipelineRun := mustParsePipelineRun(t, `
+metadata:
+  name: pear
+spec:
+  pipelineRef:
+    name: tomatoes
+  serviceAccountName: inexistent`)
 	if _, err := c.PipelineRunClient.Create(pipelineRun); err != nil {
 		t.Fatalf("Failed to create PipelineRun `%s`: %s", "pear", err)
 	}
